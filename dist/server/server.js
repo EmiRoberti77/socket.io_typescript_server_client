@@ -11,6 +11,8 @@ var messageType;
     messageType["connection"] = "connection";
     messageType["disconnect"] = "disconnect";
     messageType["message"] = "message";
+    messageType["joining"] = "joining";
+    messageType["joined"] = "joined";
 })(messageType || (messageType = {}));
 const SPACE = ' ';
 var outPut;
@@ -19,13 +21,14 @@ var outPut;
     outPut["disconnected"] = "disconnected";
     outPut["counter"] = "counter";
     outPut["left"] = "left the building!";
-    outPut["hello"] = "hello";
+    outPut["welcomeBack"] = "welcome back";
     outPut["serverStarted"] = "server started";
-    outPut["genEmit"] = "gen Emit message";
+    outPut["welcome"] = "welcome";
     outPut["genBroadcast"] = "broadcast";
 })(outPut || (outPut = {}));
 const luckyNum = (num) => `you lucky number is ${num}`;
 const youWin = (num) => `you are lucky winner with number ${num}`;
+const sayHelloTo = (playerName) => `Hello all say hello to ${playerName}`;
 const port = 3000;
 const app = express();
 //path to server client static pages
@@ -36,14 +39,45 @@ const server = (0, http_1.createServer)(app);
 const io = new socket_io_1.Server(server);
 //create luckyNumber game
 const game = new luckyNumber_1.default();
+const players = {};
 //handle new connection
 io.on(messageType.connection, (socket) => {
-    // assign a lucky number to the connected socket
-    game.luckyNumbers[socket.id] = Math.floor(Math.random() * 20);
-    //let the client socket know what their lucky number is
-    socket.emit(messageType.message, {
-        message: luckyNum(game.luckyNumbers[socket.id]),
-        socketId: socket.id
+    socket.on(messageType.joining, (playerName) => {
+        if (players[playerName]) {
+            //update socket id for logged in player
+            players[playerName].sockedId = socket.id;
+            //welcome Back player and let them know about their saved lucky number
+            socket.emit(messageType.joined, {
+                message: outPut.welcomeBack +
+                    SPACE +
+                    playerName +
+                    SPACE +
+                    luckyNum(players[playerName].luckyNumber),
+                socketId: socket.id
+            });
+        }
+        else {
+            //new player
+            players[playerName] = {
+                luckyNumber: Math.floor(Math.random() * 20),
+                sockedId: socket.id
+            };
+            //welcome new player and let them know about their lucky number
+            socket.emit(messageType.joined, {
+                message: outPut.welcome +
+                    SPACE +
+                    playerName +
+                    SPACE +
+                    luckyNum(players[playerName].luckyNumber)
+            });
+        }
+        //store lucky number in game class
+        game.luckyNumbers[socket.id] = players[playerName].luckyNumber;
+        //let the client socket know what their lucky number is
+        socket.broadcast.emit(messageType.message, {
+            message: sayHelloTo(playerName),
+            socketId: socket.id
+        });
     });
     //handle disconnect event
     socket.on(messageType.disconnect, () => {
@@ -51,9 +85,6 @@ io.on(messageType.connection, (socket) => {
         const broadcastLeft = { message: outPut.left, socketId: socket.id };
         socket.broadcast.emit(messageType.message, broadcastLeft);
     });
-    const obj = { message: outPut.hello, socketId: socket.id };
-    //send hello to connected client
-    socket.emit(messageType.message, obj);
 });
 server.listen(port, () => {
     console.log(outPut.serverStarted + SPACE + port);
@@ -62,11 +93,10 @@ server.listen(port, () => {
 setInterval(() => {
     const luckyNum = Math.floor(Math.random() * 20);
     const winners = game.GetWinners(luckyNum);
-    const intervalEmit = { message: outPut.genEmit, socketId: new Date().toISOString() };
     winners.forEach((socketId) => {
         //iterate through the winners array and send message only to winners
         io.to(socketId).emit(messageType.message, { message: youWin(luckyNum), socketId });
     });
     //send out messages of the lucky number sent out that has been picked.
     io.emit(messageType.message, { message: luckyNum, socketId: 'x' });
-}, 5000);
+}, 3000);
