@@ -63,9 +63,9 @@ setInterval(() => {
     const luckyNum = Math.floor(Math.random() * 20);
     const winners = game.GetWinners(luckyNum);
     const intervalEmit = { message: outPut.genEmit, socketId: new Date().toISOString() };
-    winners.forEach((w) => {
+    winners.forEach((socketId) => {
         //iterate through the winners array and send message only to winners
-        io.to(w).emit(messageType.message, { message: youWin(luckyNum), socketId: w });
+        io.to(socketId).emit(messageType.message, { message: youWin(luckyNum), socketId });
     });
     //send out messages of the lucky number sent out that has been picked.
     io.emit(messageType.message, { message: luckyNum, socketId: 'x' });
