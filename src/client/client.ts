@@ -1,33 +1,86 @@
 import { io } from 'socket.io-client';
 
+let screenName: ScreenName;
+
+const messageList = document.getElementById('messageList') as HTMLOListElement;
+const messageText = document.getElementById('messageText') as HTMLInputElement;
+const sendButton = document.getElementById('sendButton') as HTMLButtonElement;
+
 const socket = io();
-let joined = false;
 
 socket.on('connect', () => {
-  const playerName = prompt('name please?');
-  if (playerName) {
-    //let server know a new player has joined
-    socket.emit('joining', playerName);
-  }
+  console.log('connect');
 });
 
 socket.on('disconnect', (message) => {
-  // deal or clean up resources for a disconnect event
-  // this could be the server loosing connection to client
-  document.body.innerHTML = `<p>${message}</p>`;
+  console.log('disconnect ' + message);
 });
 
-socket.on('joined', (message: { message: string; socketId: string }) => {
-  document.body.innerHTML += message.message;
-  joined = true;
+socket.on('screenName', (message: ScreenName) => {
+  screenName = message;
+  (document.getElementsByClassName('screenName')[0] as HTMLSpanElement).innerText =
+    screenName.name;
 });
 
-socket.on('message', (message: { message: string; socketId: string }) => {
-  if (joined) {
-    window.scrollTo({
-      top: document.body.scrollHeight,
-      behavior: 'smooth'
-    });
-    document.body.innerHTML += `<div><p>message:${message.message}, socketId:${message.socketId}</p></div>`;
+socket.on('chatMessage', (message: ChatMessage) => {
+  const li = document.createElement('li');
+  li.innerHTML =
+    "<span class='circle' style='float: right;'>" +
+    message.from +
+    "</span><div class='otherMessage'>" +
+    message.message +
+    '</div>';
+  messageList.appendChild(li);
+
+  scrollChatWindow();
+});
+
+socket.on('systemMessage', (message) => {
+  const li = document.createElement('li');
+  li.innerHTML = "<div class='systemMessage'>" + message + '</div>';
+  messageList.appendChild(li);
+
+  scrollChatWindow();
+});
+
+messageText.addEventListener('keypress', (e) => {
+  if (e.code === 'Enter') {
+    sendMessage();
+    return false;
   }
 });
+
+function sendMessage() {
+  if (messageText.value.length > 0) {
+    socket.emit('chatMessage', <ChatMessage>{
+      message: messageText.value,
+      from: screenName.abbreviation
+    });
+
+    const li = document.createElement('li');
+    li.innerHTML =
+      "<span class='circle' style='float: left;'>" +
+      screenName.abbreviation +
+      "</span><div class='myMessage'>" +
+      messageText.value +
+      '</div>';
+    messageList.appendChild(li);
+
+    messageText.value = '';
+
+    scrollChatWindow();
+  }
+}
+
+sendButton.addEventListener('click', () => {
+  sendMessage();
+});
+
+function scrollChatWindow() {
+  const count = document.querySelectorAll('#messageList li').length;
+  if (count > 10) {
+    messageList.removeChild(messageList.firstChild as HTMLLIElement);
+  }
+
+  messageList.scrollTo({ top: messageList.scrollHeight, behavior: 'smooth' });
+}
